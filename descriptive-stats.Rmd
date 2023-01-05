@@ -1,0 +1,686 @@
+---
+title: "Spotify - preprocessing, descriptive statistics and bivariate statistics"
+output:
+  word_document: default
+  html_notebook: default
+  html_document:
+    df_print: paged
+---
+
+# Introduction
+
+In this project, we are using a dataset of songs on the music streaming app Spotify.
+
+The dataset contains songs on Spotify across multiple genres, and we will be performing several analyses to this dataset, such as basic descriptive and bivariate statistics, Principal Component Analysis, decision trees, regression, and clustering.
+
+[Here is the link to the original dataset](https://www.kaggle.com/datasets/maharshipandya/-spotify-tracks-dataset)
+
+First, we import the data to R and make sure R is reading the data properly.
+
+```{r, results = FALSE}
+# importing relevant libraries to perform cleaning on the data
+library(tidyverse)
+library(janitor)
+setwd("~/Documents/class/stats-final-project/")
+# importing the data and cleaning the names into a snake_case format.
+raw_data <- read.csv("dataset.csv") %>% clean_names() 
+```
+The dataset has 114,000 rows and 21 columns/variables.
+
+It has the following scores (numerical variables):
+* *popularity*: The popularity of a track is a value between 0 and 100, with 100 being the most popular.
+- *duration_ms*: The track length in milliseconds
+- *danceability*: Danceability describes how suitable a track is for dancing based on a combination of musical elements including tempo, rhythm stability, beat strength, and overall regularity. A value of 0.0 is least danceable and 1.0 is most danceable
+- *energy*: Energy is a measure from 0.0 to 1.0 and represents a perceptual measure of intensity and activity. Typically, energetic tracks feel fast, loud, and noisy. For example, death metal has high energy, while a Bach prelude scores low on the scale
+- *loudness*: The overall loudness of a track in decibels (dB)
+- *speechiness*: Speechiness detects the presence of spoken words in a track. The more exclusively speech-like the recording (e.g. talk show, audio book, poetry), the closer to 1.0 the attribute value.
+- *acousticness*: A confidence measure from 0.0 to 1.0 of whether the track is acoustic. 1.0 represents high confidence the track is acoustic
+- *instrumentalness*: Predicts whether a track contains no vocals. "Ooh" and "aah" sounds are treated as instrumental in this context. Rap or spoken word tracks are clearly "vocal". The closer the instrumentalness value is to 1.0, the greater likelihood the track contains no vocal content
+- *liveness*: Detects the presence of an audience in the recording. Higher liveness values represent an increased probability that the track was performed live. A value above 0.8 provides strong likelihood that the track is live
+- *valence*: A measure from 0.0 to 1.0 describing the musical positiveness conveyed by a track. Tracks with high valence sound more positive (e.g. happy, cheerful, euphoric), while tracks with low valence sound more negative (e.g. sad, depressed, angry)
+- *tempo*: The overall estimated tempo of a track in beats per minute (BPM). In musical terminology, tempo is the speed or pace of a given piece and derives directly from the average beat duration
+
+The dataset also has the following categorical variables:
+- *explicit*: Whether or not the track has explicit lyrics (true = yes it does; false = no it does not OR unknown)
+- *mode*: Mode indicates the modality (major or minor) of a track, the type of scale from which its melodic content is derived. Major is represented by 1 and minor is 0
+- *key*: The key the track is in. Integers map to pitches using standard Pitch Class notation. E.g. 0 = C, 1 = C♯/D♭, 2 = D, and so on. If no key was detected, the value is -1
+- *track_genre*: The genre in which the track belongs
+
+It also has the following columns that describe the songs:
+- *track_id*: The Spotify ID for the track
+- *artists*: The artists' names who performed the track. If there is more than one artist, they are separated by a ;
+- *album_name*: The album name in which the track appears
+- *track_name*: Name of the track
+
+Now we are performing several checks on the data
+
+```{r}
+#dim(raw_data)
+#names(raw_data)
+#sapply(raw_data, class)
+```
+We'll perform the following transforms to the data in order to prepare it for our analysis:
+
+Since some of the categorical variables - mode, key, and time_signature - are currently codified as numerical, we will do the following:
+1. *key*: We will be converting them from numbers 0 to 11 to the letter value of the key (C = 0, C# = 1, etc.)
+2. *mode*: Instead of 0 for minor and 1 for major, we'll convert them to "major" and "minor".
+3. *time_signature*: We'll convert into characters instead of numeric.
+
+We are also adding 2 more variables, which are:
+1. *multiple_artists*: If there are multiple artists performing the track, the artists column will contain all artists separated by a semicolon (;). We'll add a true value in this column if there are multiple artists, and false if a single artist.
+2. *tempo_cat*: this is a categorical variable based on the tempo column. We'll use the beats per minute to determine which tempo marking it fits in. This will be an ordinal variable, with the levels defined.
+
+We are also performing several filters to scope our analysis:
+1. Filter to songs that are done by popular artists. This is done by finding the artists that have 20 songs or more and filtering to just the songs by those artists.
+2. We also scope the analysis to just songs that are less than 10 minutes.
+3. We'll also remove the duplicated songs. This is because some songs are listed in albums or single versions. This is done by removing songs that have the same variable in the track_name and artists columns.
+4. We also sample the data to just 3,000 rows/songs. This is done by random sampling using the `sample_n()` function.
+
+Finally, we'll just select the columns that are relevant to us in our analysis, and remove the descriptive columns, track_id, artists, album_name, and track_name.
+
+```{r, results = FALSE}
+# creating a list of keys from C to B
+key_alpha <- c('C','C#/Db','D','D#/Eb','E','F','F#/Gb','G','G#/Ab','A','A#/Bb','B')
+
+# creating a new df for mapping keys
+key_map <- data.frame(key = c(0:11),
+                      key_alpha = key_alpha)
+
+data <- raw_data %>%
+  full_join(key_map, "key") %>% 
+  mutate(mode = str_replace(as.character(mode), "0", "minor"),
+         mode = str_replace(as.character(mode), "1", "major"),
+         time_signature = as.character(time_signature),
+         # converting keys to alphabet
+         key = key_alpha,
+         # adding a column for whether the artist is one or multiple. True for Multiple, false for single
+         multiple_artists = grepl(";", artists)
+         ) %>% 
+  select(-1, -22) %>%
+  # removing duplicates in songs, because some tracks are in multiple albums
+  distinct(track_name, artists, .keep_all = TRUE)
+
+# finding the popular artists, with more than 20 songs listed.
+popular_artists <- data %>% group_by(artists) %>% 
+  summarize(count = n()) %>% 
+  filter(count >= 20) 
+
+filtered <- data %>% filter(artists %in% popular_artists$artists) %>% 
+  filter(duration_ms <= 600000) %>%
+  #removing the track_id, title, artists, albums because it's not needed.
+  select(5:21) %>%
+  mutate(
+  # adding an ordinal variable for tempo
+  tempo_cat = cut(tempo,
+              breaks=c(0, 20, 40, 60, 66, 76, 108, 120, 168, 176, 200, 1000),
+              labels=c('Larghissimo','Grave','Lento/Largo','Larghetto','Adagio','Andante','Moderato','Allegro','Vivace','Presto','Prestissimo'))
+)
+
+# random sampling the data to just 3000 songs
+set.seed(1)
+dd <- filtered %>% sample_n(3000)
+
+# attaching the column names
+attach(dd)
+
+# for one-time exporting for other analysis
+# dd %>% write_csv("cleaneddata.csv")
+```
+
+# Descriptive Statistics
+
+
+
+
+```{r}
+n<-dim(dd)[1]
+K<-dim(dd)[2]
+
+descriptiva<-function(X, nom){
+  if (!(is.numeric(X) || class(X)=="Date")){ 
+    frecs<-table(as.factor(X), useNA="ifany")
+    proportions<-frecs/n
+    #ojo, decidir si calcular porcentages con o sin missing values
+    pie(frecs, cex=0.6, main=paste("Pie of", nom))
+    barplot(frecs, las=3, cex.names=0.7, main=paste("Barplot of", nom), col=listOfColors)
+    print(paste("Number of modalities: ", length(frecs)))
+    print("Frequency table")
+    print(frecs)
+    print("Relative frequency table (proportions)")
+    print(proportions)
+    print("Frequency table sorted")
+    print(sort(frecs, decreasing=TRUE))
+    print("Relative frequency table (proportions) sorted")
+    print(sort(proportions, decreasing=TRUE))
+   }else{
+     if(class(X)=="Date"){
+       print(summary(X))
+       print(sd(X))
+       #decide breaks: weeks, months, quarters...
+       hist(X,breaks="weeks")
+     }else{
+       hist(X, main=paste("Histogram of", nom))
+       boxplot(X, horizontal=TRUE, main=paste("Boxplot of",nom))
+       print("Extended Summary Statistics")
+       print(summary(X))
+       print(paste("sd: ", sd(X, na.rm=TRUE)))
+       print(paste("vc: ", sd(X, na.rm=TRUE)/mean(X, na.rm=TRUE)))
+      }
+   }
+}
+
+dataset<-dd
+actives<-c(1:K)
+colDate<-1
+if (dataset=="platjaDaro")
+  {dd[,colDate]<-as.Date(dd[, colDate], format="%d/%m/%y %h:%m:%s")
+   actives<-c(3:44)
+   }
+
+listOfColors<-rainbow(39)
+
+par(ask=FALSE)
+
+for(k in actives){
+  print(paste("variable ", k, ":", names(dd)[k] ))
+  descriptiva(dd[,k], names(dd)[k])
+}
+par(ask=FALSE)
+
+#per exportar figures d'R per programa
+#dev.off()
+#png(file=mypath,width = 950, height = 800, units = "px")
+#dev.off()
+```
+
+
+# Bivariate statistics
+
+After seeing the basic descriptive statistics of the data, we'll do a bivariate statistics analysis. The purpose is to find relationships between:
+1. Categorical vs categorical variables
+2. Categorical vs numerical variables
+3. Numerical vs numerical variables
+
+## Categorical vs. categorical
+
+We examine the relationship between tempo marking and mode.
+
+```{r}
+library(ggplot2)
+
+# stacked bar chart
+
+ggplot(dd, 
+       aes(x = tempo_cat, 
+           fill = mode)) + 
+  geom_bar(position = "stack")
+
+ggplot(dd, 
+       aes(x = tempo_cat, 
+           fill = mode)) + 
+  geom_bar(position = "dodge")
+
+ggplot(dd, 
+       aes(x = tempo_cat, 
+           fill = mode)) + 
+  geom_bar(position = "fill")
+```
+From the above bar charts, we see that while there are more songs in the major key, some tempo markings have a higher proportion of minor songs than others. Larghetto and Vivace songs are the two tempo markings that have the highest proportion of minor songs, which is interesting because Larghetto is on the slower end, and Vivace is on the faster end.
+
+Next, we can also examine the relationship between mode and explicitness.
+
+```{r}
+# stacked bar chart
+
+ggplot(dd, 
+       aes(x = explicit, 
+           fill = mode)) + 
+  geom_bar(position = "stack")
+
+ggplot(dd, 
+       aes(x = explicit, 
+           fill = mode)) + 
+  geom_bar(position = "dodge")
+
+ggplot(dd, 
+       aes(x = explicit, 
+           fill = mode)) + 
+  geom_bar(position = "fill")
+```
+From the plots above: there aren't many songs that are explicit, and it is hard to tell the relationship. The proportion of minor songs for songs that are explicit is slightly higher than major songs. However, it's a very minimal difference.
+
+We can also examine the relationship between track_genre and mode.
+
+```{r}
+# stacked bar chart
+ggplot(dd, 
+       aes(x = track_genre, 
+           fill = mode)) + 
+  geom_bar(position = "stack") + scale_x_discrete(guide = guide_axis(angle = 90))
+
+ggplot(dd, 
+       aes(x = track_genre, 
+           fill = mode)) + 
+  geom_bar(position = "dodge") + scale_x_discrete(guide = guide_axis(angle = 90))
+
+ggplot(dd, 
+       aes(x = track_genre, 
+           fill = mode)) + 
+  geom_bar(position = "fill") + scale_x_discrete(guide = guide_axis(angle = 90)) +
+    theme(legend.key.size = unit(0.5, 'cm'), #change legend key size
+        legend.key.height = unit(0.5, 'cm'), #change legend key height
+        legend.key.width = unit(0.5, 'cm'), #change legend key width
+        legend.title = element_text(size=5), #change legend title font size
+        legend.text = element_text(size=5)) +
+  theme(text = element_text(size = 7)) 
+
+# getting the results of the proportion bar chart in a table
+dd %>% group_by(track_genre, mode) %>% 
+  summarise(n = n()) %>% 
+  mutate(freq = n / sum(n)) %>% 
+  filter(mode == "minor") %>% 
+  arrange(desc(freq))
+
+  
+```
+We can see there are some genres that clearly stand out that have majority minor songs.
+All latin songs are in the minor key. Synth-pop, turkish, trance, dancehall, romance, spanish, anime and hiphop songs are also among the top 10 genres with a high proportion of minor songs.
+
+So, there seem to be a relationship between genre and mode.
+
+```{r}
+# stacked bar chart
+ggplot(dd, 
+       aes(x = track_genre, 
+           fill = explicit)) + 
+  geom_bar(position = "stack") + scale_x_discrete(guide = guide_axis(angle = 90))
+
+ggplot(dd, 
+       aes(x = track_genre, 
+           fill = explicit)) + 
+  geom_bar(position = "dodge") + scale_x_discrete(guide = guide_axis(angle = 90))
+
+ggplot(dd, 
+       aes(x = track_genre, 
+           fill = explicit)) + 
+  geom_bar(position = "fill") + scale_x_discrete(guide = guide_axis(angle = 90)) +
+    theme(legend.key.size = unit(0.5, 'cm'), #change legend key size
+        legend.key.height = unit(0.5, 'cm'), #change legend key height
+        legend.key.width = unit(0.5, 'cm'), #change legend key width
+        legend.title = element_text(size=5), #change legend title font size
+        legend.text = element_text(size=5)) +
+  theme(text = element_text(size = 7)) 
+
+# getting the results of the proportion bar chart in a table
+dd %>% group_by(track_genre, explicit) %>% 
+  summarise(n = n()) %>% 
+  mutate(freq = n / sum(n)) %>% 
+  filter(explicit == "True") %>% 
+  arrange(desc(freq))
+```
+
+Explicit and genre also seems to be related, as songs that are explicit tend to be from some genres.
+Latino songs are 100% explicit. Comedy, country, dance and some of the metal genres also tend to contain swear words.
+
+Next we can examine the relationship between key and time signature.
+
+```{r}
+# stacked bar chart
+
+ggplot(dd, 
+       aes(x = key, 
+           fill = mode)) + 
+  geom_bar(position = "stack")
+
+ggplot(dd, 
+       aes(x = key, 
+           fill = mode)) + 
+  geom_bar(position = "dodge")
+
+ggplot(dd, 
+       aes(x = key, 
+           fill = mode)) + 
+  geom_bar(position = "fill")
+
+# getting the results of the proportion bar chart in a table
+dd %>% group_by(key, mode) %>% 
+  summarise(n = n()) %>% 
+  mutate(freq = n / sum(n)) %>% 
+  filter(mode == "minor") %>% 
+  arrange(desc(freq))
+```
+The key of B has the highest proportion of minor songs. F#/Gb, E and A#/Bb also have a relatively higher percentage of minor songs.
+
+
+
+## Categorical vs numerical variables
+
+We can also perform analysis on categorical vs numerical variables by using charts such as multiple boxplots to plot the distribution of one numerical variable given another categorical variable.
+
+We have used the code by Dr. Karina Gibert to do an overview of the variables, and below are the interesting plots in `ggplot()`
+
+First, the code below creates functions to test numerical and qualitative variables.
+
+```{r}
+#Calcula els valor test de la variable Xnum per totes les modalitats del factor P
+ValorTestXnum <- function(Xnum,P){
+  #freq dis of fac
+  nk <- as.vector(table(P)); 
+  n <- sum(nk); 
+  #mitjanes x grups
+  xk <- tapply(Xnum,P,mean);
+  #valors test
+  txk <- (xk-mean(Xnum))/(sd(Xnum)*sqrt((n-nk)/(n*nk))); 
+  #p-values
+  pxk <- pt(txk,n-1,lower.tail=F);
+  for(c in 1:length(levels(as.factor(P)))){if (pxk[c]>0.5){pxk[c]<-1-pxk[c]}}
+  return (pxk)
+}
+
+ValorTestXquali <- function(P,Xquali){
+  taula <- table(P,Xquali);
+  n <- sum(taula); 
+  pk <- apply(taula,1,sum)/n;
+  pj <- apply(taula,2,sum)/n;
+  pf <- taula/(n*pk);
+  pjm <- matrix(data=pj,nrow=dim(pf)[1],ncol=dim(pf)[2], byrow=TRUE);      
+  dpf <- pf - pjm; 
+  dvt <- sqrt(((1-pk)/(n*pk))%*%t(pj*(1-pj))); 
+  #i hi ha divisions iguals a 0 dona NA i no funciona
+  zkj <- dpf
+  zkj[dpf!=0]<-dpf[dpf!=0]/dvt[dpf!=0]; 
+  pzkj <- pnorm(zkj,lower.tail=F);
+  for(c in 1:length(levels(as.factor(P)))){for (s in 1:length(levels(Xquali))){if (pzkj[c,s]> 0.5){pzkj[c,s]<-1- pzkj[c,s]}}}
+  return (list(rowpf=pf,vtest=zkj,pval=pzkj))
+}
+```
+
+There are several variables we wish to assess. Our hypotheses are:
+- 
+
+Let's run the profiling script for the mode variable
+
+```{r}
+#Data is referred to as "dades" in the following code
+
+dades<-dd
+K<-dim(dades)[2]
+#par(ask=TRUE)
+
+#P must contain the class variable
+P<-dd$mode
+nameP<-"mode"
+
+
+
+nc<-length(levels(as.factor(P)))
+pvalk <- matrix(data=0,nrow=nc,ncol=K, dimnames=list(levels(P),names(dades)))
+nameP<-"mode"
+n<-dim(dades)[1]
+
+for(k in 1:K){
+  if (is.numeric(dades[,k])){ 
+    print(paste("Analysis by class of the Variable:", names(dades)[k]))
+    
+    boxplot(dades[,k]~P, main=paste("Boxplot of", names(dades)[k], "vs", nameP ), horizontal=TRUE)
+    
+    barplot(tapply(dades[[k]], P, mean),main=paste("Means of", names(dades)[k], "by", nameP ))
+    abline(h=mean(dades[[k]]))
+    legend(0,mean(dades[[k]]),"global mean",bty="n")
+    print("Statistics by groups:")
+    for(s in levels(as.factor(P))) {print(summary(dades[P==s,k]))}
+    o<-oneway.test(dades[,k]~P)
+    print(paste("p-valueANOVA:", o$p.value))
+    kw<-kruskal.test(dades[,k]~P)
+    print(paste("p-value Kruskal-Wallis:", kw$p.value))
+    pvalk[,k]<-ValorTestXnum(dades[,k], P)
+    print("p-values ValorsTest: ")
+    print(pvalk[,k])      
+  }else{
+    if(class(dd[,k])=="Date"){
+      print(summary(dd[,k]))
+      print(sd(dd[,k]))
+      #decide breaks: weeks, months, quarters...
+      hist(dd[,k],breaks="weeks")
+    }else{
+      #qualitatives
+      print(paste("Variable", names(dades)[k]))
+      table<-table(P,dades[,k])
+      #   print("Cross-table")
+      #   print(table)
+      rowperc<-prop.table(table,1)
+      
+      colperc<-prop.table(table,2)
+      #  print("Distribucions condicionades a files")
+      # print(rowperc)
+      
+      #ojo porque si la variable es true o false la identifica amb el tipus Logical i
+      #aquest no te levels, por tanto, coertion preventiva
+      
+      dades[,k]<-as.factor(dades[,k])
+      
+      
+      marg <- table(as.factor(P))/n
+      print(append("Categories=",levels(as.factor(dades[,k]))))
+      
+      #from next plots, select one of them according to your practical case
+      
+      #with legend
+      plot(marg,type="l",ylim=c(0,1),main=paste("Prop. of pos & neg by",names(dades)[k]))
+      paleta<-rainbow(length(levels(dades[,k])))
+      for(c in 1:length(levels(dades[,k]))){lines(colperc[,c],col=paleta[c]) }
+      legend("topright", levels(dades[,k]), col=paleta, lty=2, cex=0.6)
+      
+      #condicionades a classes
+      #with legend
+      plot(marg,type="n",ylim=c(0,1),main=paste("Prop. of pos & neg by",names(dades)[k]))
+      paleta<-rainbow(length(levels(dades[,k])))
+      for(c in 1:length(levels(dades[,k]))){lines(rowperc[,c],col=paleta[c]) }
+      legend("topright", levels(dades[,k]), col=paleta, lty=2, cex=0.6)
+      
+      #amb variable en eix d'abcisses
+      marg <-table(dades[,k])/n
+      print(append("Categories=",levels(dades[,k])))
+      
+      #with legend
+      plot(marg,type="l",ylim=c(0,1),main=paste("Prop. of pos & neg by",names(dades)[k]), las=3)
+      for(c in 1:length(levels(as.factor(P)))){lines(rowperc[c,],col=paleta[c])}
+      legend("topright", levels(as.factor(P)), col=paleta, lty=2, cex=0.6)
+      
+      #condicionades a columna 
+      #with legend
+      plot(marg,type="n",ylim=c(0,1),main=paste("Prop. of pos & neg by",names(dades)[k]), las=3)
+      for(c in 1:length(levels(as.factor(P)))){lines(colperc[c,],col=paleta[c])}
+      legend("topright", levels(as.factor(P)), col=paleta, lty=2, cex=0.6)
+      
+      table<-table(dades[,k],P)
+      print("Cross Table:")
+      print(table)
+      print("Distribucions condicionades a columnes:")
+      print(colperc)
+      
+      #diagrames de barres apilades                                         
+      
+      paleta<-rainbow(length(levels(dades[,k])))
+      
+      barplot(table(dades[,k], as.factor(P)), beside=FALSE,col=paleta )
+      legend("topright",levels(as.factor(dades[,k])),pch=1,cex=0.5, col=paleta)
+      
+      #diagrames de barres adosades
+      
+      barplot(table(dades[,k], as.factor(P)), beside=TRUE,col=paleta)
+      legend("topright",levels(as.factor(dades[,k])),pch=1,cex=0.5, col=paleta)
+      
+      print("Test Chi quadrat: ")
+      print(chisq.test(dades[,k], as.factor(P)))
+      
+      print("valorsTest:")
+      print( ValorTestXquali(P,dades[,k]))
+      #calcular els pvalues de les quali
+    }
+  }
+}#endfor
+
+#descriptors de les classes més significatius. Afegir info qualits
+for (c in 1:length(levels(as.factor(P)))) {
+  if(!is.na(levels(as.factor(P))[c])){
+    print(paste("P.values per class:",levels(as.factor(P))[c]));
+    print(sort(pvalk[c,]), digits=3) 
+  }
+}
+
+#afegir la informacio de les modalitats de les qualitatives a la llista de pvalues i fer ordenacio global
+
+#saving the dataframe in an external file
+#write.table(dd, file = "credscoClean.csv", sep = ";", na = "NA", dec = ".", row.names = FALSE, col.names = TRUE)
+
+
+```
+Findings:
+
+From the boxplot of valence vs mode, we can see that minor songs tend to have lower valence (sadder mood) than major songs.
+Similarly, songs in the minor key tend to have lower tempo compared to songs in the major key, although there are outliers.
+
+Interestingly, many songs in the major key are in the key of G, C, D and A.
+Whereas the most popular key for minor songs are A, B and E.
+
+For popularity, songs in the minor key have a wider range compared to major songs.
+
+
+Genre vs valence.
+
+```{r}
+library(dplyr)
+library(forcats)
+plotdata <- dd %>%
+  group_by(track_genre) %>%
+  summarize(mean_valence = mean(valence))
+# plot mean salaries
+ggplot(plotdata, 
+       aes(x = fct_reorder(track_genre, mean_valence), 
+           y = mean_valence)) +
+  geom_bar(stat = "identity") +
+  scale_x_discrete(guide = guide_axis(angle = 90)) +
+  xlab("Genre") + ylab("Mean Valence")
+```
+One genre stood out when looking at highest valence: r&b. The Sleep genre has the lowest mean valence.
+
+Next we can examine the relationship between genre and energy, by calculating the mean.
+
+```{r}
+plotdata2 <- dd %>%
+  group_by(track_genre) %>%
+  summarize(mean_energy = mean(energy))
+# plot mean salaries
+ggplot(plotdata2, 
+       aes(x = fct_reorder(track_genre, mean_energy), 
+           y = mean_energy)) +
+  geom_bar(stat = "identity") +
+  scale_x_discrete(guide = guide_axis(angle = 90))
+```
+Classical songs have the least mean energy, and drum-and-bass songs have the highest mean energy.
+
+We can also examine the relationship between genre and danceability
+
+```{r}
+plotdata3 <- dd %>%
+  group_by(track_genre) %>%
+  summarize(mean_danceability = mean(danceability))
+# plot mean salaries
+ggplot(plotdata3, 
+       aes(x = fct_reorder(track_genre, mean_danceability), 
+           y = mean_danceability)) +
+  geom_bar(stat = "identity") +
+  scale_x_discrete(guide = guide_axis(angle = 90))
+```
+
+
+
+```{r}
+plotdata2 <- dd %>%
+  group_by(track_genre) %>%
+  summarize(mean_energy = mean(energy))
+# plot mean salaries
+ggplot(plotdata2, 
+       aes(x = fct_reorder(track_genre, mean_energy), 
+           y = mean_energy)) +
+  geom_bar(stat = "identity") +
+  scale_x_discrete(guide = guide_axis(angle = 90))
+```
+
+
+```{r}
+ggplot(dd, 
+       aes(x = mode, 
+           y = valence)) +
+  geom_boxplot() +
+  labs(title = "Valence distribution by mode")
+```
+
+Energy vs mode
+
+```{r}
+ggplot(dd, 
+       aes(x = mode, 
+           y = energy)) +
+  geom_boxplot() +
+  labs(title = "Energy distribution by mode")
+```
+
+Minor songs actually have a higher range of energy compared to major songs, which is interesting because one would think that there would be more happy songs (typically major key) with higher energy. But this could be because many of the latin songs are in minor key.
+
+```{r}
+ggplot(dd, 
+       aes(x = mode, 
+           y = acousticness)) +
+  geom_boxplot() +
+  labs(title = "Acousticness distribution by mode")
+```
+
+Looking at valence vs explicitness, we see that songs that are explicit tend to have lower valence than songs that are clean.
+
+```{r}
+ggplot(dd, 
+       aes(x = explicit, 
+           y = valence)) +
+  geom_boxplot() +
+  labs(title = "Valence distribution by explicit") +
+    scale_x_discrete(guide = guide_axis(angle = 90))
+
+```
+
+Looking at valence vs explicitness, we see that songs that are explicit tend to have lower valence than songs that are clean.
+
+```{r}
+ggplot(dd, 
+       aes(x = explicit, 
+           y = valence)) +
+  geom_boxplot() +
+  labs(title = "Valence distribution by explicit") +
+    scale_x_discrete(guide = guide_axis(angle = 90))
+
+```
+
+
+## Numerical vs Numerical
+
+
+```{r}
+numerical_only <- dd %>% select(1:2, 4:5, 7, 9:14)
+pairs(numerical_only)
+
+panel.cor <- function(x, y, digits = 2, prefix = "", cex.cor, ...)
+{
+    usr <- par("usr"); on.exit(par(usr))
+    par(usr = c(0, 1, 0, 1))
+    r <- abs(cor(x, y))
+    txt <- format(c(r, 0.123456789), digits = digits)[1]
+    txt <- paste0(prefix, txt)
+    if(missing(cex.cor)) cex.cor <- 0.8/strwidth(txt)
+    text(0.5, 0.5, txt, cex = cex.cor * r)
+}
+pairs(numerical_only, lower.panel = panel.smooth, upper.panel = panel.cor,
+      gap=0, row1attop=FALSE)
+
+```
+
