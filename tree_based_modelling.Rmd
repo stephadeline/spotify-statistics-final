@@ -1,0 +1,198 @@
+---
+title: "Tree-based modelling"
+output:
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidymodels)
+library(tidyverse)
+filtered <- read_csv("./data/cleaneddata.csv")
+```
+
+## Data overview  
+
+We use the Spotify dataset obtained via the preprocessing.R script, where is each observation is a track with its attributes (e.g. track name and artists as well as musical traits like energy and key)
+
+As shown below, there are more than 100 genres, with a good number being kids/children.
+
+Our aim is to predict which tracks are children songs, using tree-based modelling.
+
+```{r }
+
+filtered %>% count(track_genre, sort = TRUE)
+
+```
+
+Let's create a new outcome column (True if the track is a children song, false if otherwise) and drop unnecessary columns.
+
+We'll split the data randomly and by strata into a training and test set to minimize class imbalances.
+
+```{r}
+
+
+data_prep <- filtered %>%
+  mutate(outcome = as_factor(case_when(
+    track_genre == "children" ~ TRUE,
+    track_genre == "kids" ~ TRUE,
+    TRUE ~ FALSE
+  ))) %>% select(-track_genre)
+
+data_prep$outcome <- factor(data_prep$outcome, levels = c("TRUE", "FALSE"))
+
+data_prep <- data_prep[complete.cases(data_prep),]
+
+set.seed(1)
+data_split <- initial_split(data_prep, prop = 0.75, strata = outcome)
+training_data <- training(data_split)
+test_data <- testing(data_split)
+
+```
+
+## Decision Tree
+
+### Create and train decision tree
+
+Using a correlation heatmap, we can identify which variables seem to correlate with whether a track is a children song:  danceability, valence, and duration_ms.
+
+```{r fig.height = 6}
+
+library(corrplot)
+
+training_data %>%
+  mutate(explicit = as.numeric(explicit), outcome = as.numeric(as.logical(outcome)), multiple_artists = as.numeric(multiple_artists)) %>%
+  select(where(is.numeric)) %>%
+  cor(.) %>%
+  round(2) %>%
+  corrplot(
+    method = "color",
+    type = "upper",
+    addCoef.col = "black",
+    tl.col = "black"
+  )
+
+```
+
+Now we create a decision tree and use the training data to fit the model. We see that danceability and duration of the track are major nodes in the tree.
+
+```{r}
+
+set.seed(1)
+
+tree <- decision_tree() %>%
+  set_engine("rpart") %>%
+  set_mode("classification") %>%
+  fit(formula = outcome ~  ., data = training_data)
+
+tree
+
+```
+
+
+### Predict and evaluate model
+
+The model has high accuracy but low recall as the dataset is still imbalanced, with children songs falling in the minority class. In other words, the model is able to make many correct predictions on the basis that most tracks aren't children songs, but it has less ability to determine children songs correctly.
+
+```{r}
+test_data$outcome <- as_factor(test_data$outcome)
+
+predictions <- predict(tree, new_data = test_data, type = "class") %>%
+  mutate(true_class = test_data$outcome) 
+
+confusion_matrix <- conf_mat(predictions, estimate = .pred_class, truth = true_class)
+confusion_matrix
+
+```
+## Improving the model
+
+### Oversampling with "SMOTE"
+
+We'll use a few techniques to improve our machine learning. First, we'll use synthetic oversampling to increase frequency of the underrepresented class of children songs. As there are `r sum(training_data$outcome == FALSE)/sum(training_data$outcome == TRUE)` more non-children-songs, we'll set the dup_size parameter to 9 so the children songs class will be closer to 40% of total tracks.
+
+```{r }
+library(smotefamily)
+library(patchwork)
+
+data_for_smote <- training_data %>% 
+  mutate(explicit = as.numeric(explicit))
+
+smote_output <- SMOTE(X = select(data_for_smote, where(is.numeric)),target = data_for_smote$outcome, K = 5, dup_size = 9)
+
+song_smote <- smote_output$data %>% mutate(outcome = as.factor(class)) %>% select(-class)
+song_smote$outcome <- factor(song_smote$outcome, levels = c("TRUE", "FALSE"))
+
+```
+
+```{r fig.width = 8}
+
+
+plot1 <- ggplot(training_data, aes(x = danceability, y = duration_ms, color = outcome)) + geom_point(alpha = .2) + ggtitle("Original training data") + scale_color_manual(values = c("TRUE" = "salmon", "FALSE" = "#00BFC4"))
+
+plot2 <- ggplot(song_smote, aes(x = danceability, y = duration_ms, color = outcome)) + geom_point(alpha = .2) + ggtitle("Oversampled data") + scale_color_manual(values = c("TRUE" = "salmon", "FALSE" = "#00BFC4"))
+
+plot1 + plot2
+
+```
+
+### Build and tune random forest model
+
+Next, we'll further split the over-sampled training data into train and validation set to train a random forest model.
+
+
+```{r}
+
+library(ranger)
+
+set.seed(1)
+cv_data <- vfold_cv(song_smote, strata = outcome, v = 5) %>% mutate(train = map(splits, ~training(.x)), validate = map(splits, ~testing(.x)))
+
+# Prepare for tuning cross validation folds by varying mtry
+cv_tune <- cv_data  %>% crossing(mtry = c(4,6,8,12))
+
+# Build a model for each fold & mtry combination
+cv_models_randomforest <- cv_tune %>% mutate(model = map2(.x = train, .y = mtry, ~ranger(formula = outcome ~ ., data = .x, mtry = .y, seed = 1)))
+
+```
+
+We'll generate predictions on the validation set and evaluate them. The model with 4 mtry has the best performance.
+```{r}
+
+# Generate and evaluate predictions 
+cv_eval_randomforest <- cv_models_randomforest %>% mutate(
+  validate_actual = map(validate, ~.x$outcome == TRUE),
+  validate_predicted = map2(.x = model, .y = validate, ~predict(.x, .y, type = "response")$predictions == TRUE)
+)
+
+#Calculate recall for each cross-validation fold (measures sensitivity)
+recall_agg <- c()
+for (i in 1:nrow(cv_eval_randomforest)){
+  recall <- recall_vec(as_factor(cv_eval_randomforest$validate_actual[[i]]),as_factor(cv_eval_randomforest$validate_predicted[[i]]))
+  recall_agg <- append(recall_agg, recall)
+}
+
+# See which mtry yields the best recall
+cv_eval_randomforest %>% select(id, mtry) %>% mutate(recall = recall_agg) %>% group_by(mtry) %>% summarise(mean_recall = mean(recall))
+
+```
+
+## Measure test performance with new model
+
+With the new model, we see a  boost in recall, from `r recall(predictions, estimate = .pred_class, truth = true_class)$.estimate` to `r recall(new_predictions, estimate = .pred_class, truth = outcome)$.estimate`.
+```{r}
+
+set.seed(1)
+best_model <- rand_forest(trees = 1000, mtry = 4) %>%
+  set_mode("classification") %>%
+  set_engine("ranger") %>%
+  fit(outcome ~ . , data = song_smote)
+
+test_data$explicit <- as.numeric(test_data$explicit)
+
+new_predictions <- predict(best_model, test_data) %>% bind_cols(test_data)
+
+conf_mat(new_predictions, estimate = .pred_class, truth = outcome)
+
+
+```
