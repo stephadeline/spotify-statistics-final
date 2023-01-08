@@ -216,15 +216,17 @@ for(k in 1:K){
 
 ## Descriptions for every variable
 
-### What patterns cn we see for each class
+### What patterns can we see for each class
 
--   Class 1 (black) - Songs that are more louder
+-   Class 1 (black) - Most loudest and energetic
 
--   Class 2 (red) - 
+-   Class 2 (red) - Most acoustic
 
--   Class 3 (green) - Electronic Dance Music (EDM)
+-   Class 3 (green) - Most energetic and instrumental
 
--   Class 4 (blue) -
+-   Class 4 (blue) - Most acoustic and instrumental
+
+Happiest to saddest songs - Class 1 \> 2 \> 3 \> 4
 
 ```{r}
 # Descriptors of the most significant classes. Add infoboxes

@@ -23,11 +23,8 @@ the Spotify dataset?
 This report includes in these parts:
 
 -   K-means clustering
-
 -   Hierarchical clustering
-
 -   Visual Partition of the n-classes
-
 -   Dissimilarity matrix / Gower's Distance metrics
 
 ## Setup
@@ -40,7 +37,7 @@ We setup the working directory and load the pre-cleaned Spotify dataset
 WD <- "C:/Users/Joseph/Documents/Codes/2022/mvtec-2022/finalproject/spotify-statistics-final/clustering"
 setwd(WD)
 dd <- read.csv("data/cleaneddata.csv", sep=",");
-head(dd, 10)
+head(dd)
 ```
 
 Let's examine all of the variables of the Spotify dataset
@@ -82,7 +79,7 @@ attach(dd)
 
 numeric_vars <- c("loudness", "energy", "acousticness", "instrumentalness", "valence")
 dcon <- dd %>% select(all_of(numeric_vars))
-head(dcon, 10)
+head(dcon)
 ```
 
 ## K-means Clustering
@@ -445,8 +442,7 @@ pairs(dcon, col=c2)
 ```
 
 ```{r}
-classes <- c("", "", "", "")
-plot(popularity, danceability, col=c2, main="Clustering of credit data in 3 classes")
+plot(popularity, danceability, col=c2, main="Clustering of Popularity vs Danceability in 3 classes")
 legend("topright",c("class1", "class2", "class3", "class4"),pch=1,col=c(1:4), cex=0.6)
 ```
 
@@ -478,7 +474,7 @@ through the profiling script
 
 ```{r}
 dcon_clust <- dcon %>% bind_cols(tibble(cluster = c2))
-dcon_clust
+head(dcon_clust)
 ```
 
 The next phase which is Profiling is in the clustering-profiling.Rmd
@@ -488,28 +484,39 @@ which will be using the dataset saved below
 write.csv(dcon_clust, file="data/SpotifyClustersData.csv", row.names=F)
 ```
 
-dd_clust <- dd %>% bind_cols(tibble(cluster = c2))
+## Check song if fits profile
 
-dd_clust %>%
-  group_by(cluster, as.factor(track_genre)) %>%
-  summarize(n = n()) %>%
-  arrange(desc(n))
-  
-dd_forplot <- dd_clust %>%
-  select(track_genre, cluster) %>%
-  group_by(cluster, track_genre) %>%
-  count() %>%
-  ungroup() %>%
-  group_by(cluster) %>%
-  top_n(10, track_genre) %>
-  arrange(cluster, desc(n))
-  
-ggplot(dd_forplot) +
-  geom_col(aes(x = cluster, y = n, fill = track_genre)) +
-  geom_text(aes(x = cluster, y = n, label = track_genre))
+Based from the charts above, we describe the classes with these profiles:
 
-dd_clust %>%
-  select(popularity, track_genre, cluster) %>%
+- Class 1 - Mostly loudest
+
+- Class 1 & 3 - Most energetic
+
+- Class 2 & 4 - Most acoustic
+
+- Class 3 & 4 - Most instrumental
+
+- From Happiest to saddest Class 1, 2, 3, 4
+
+We then picked the most popular song for every class and see if the profiling fits that song:
+
+```{r}
+dd_clust <- read.csv("data/cleaneddata-withtitles.csv") %>%
+  bind_cols(tibble(cluster = c2))
+head(dd_clust)
+```
+
+```{r}
+names(dd_clust)
+```
+Here's the top 2 songs for every cluster. Try to listen to each song and check if it fits the profile we created.
+
+```{r}
+pop_per_class <- dd_clust %>%
+  select(popularity, track_name, artists, track_genre, cluster) %>%
   arrange(desc(popularity)) %>%
-  top_n(1)
-
+  group_by(cluster) %>%
+  top_n(2, popularity) %>%
+  arrange(cluster)
+pop_per_class
+```
