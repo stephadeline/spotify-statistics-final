@@ -1,0 +1,299 @@
+---
+title: "Spotify Clustering"
+output: word_document
+date: '2022-12-23'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(janitor)
+# # Uncomment if the code will look for 'cluster' package
+# install.packages("cluster")
+```
+
+```{r}
+setwd("C:/Users/Joseph/Documents/Codes/2022/mvtec-2022/mvtec-statsprogramming/statsprog-09")
+dd <- read.csv("data/cleaneddata.csv", sep=",");
+dd
+```
+
+```{r}
+names(dd)
+dim(dd)
+summary(dd)
+
+attach(dd)
+
+# Set a list of numerical variables
+names(dd)
+numeric_vars <- c("loudness", "energy", "acousticness", "instrumentalness", "valence")
+dcon <- dd %>% select(all_of(numeric_vars))
+dim(dcon)
+```
+# CLUSTERING
+
+## KMEANS RUN, BUT HOW MANY CLASSES?
+```{r}
+k1 <- kmeans(dcon, 5)
+names(dcon)
+print(k1)
+```
+
+```{r}
+attributes(k1)
+```
+
+```{r}
+k1$size
+
+k1$withinss
+
+k1$centers
+```
+
+## LETS COMPUTE THE DECOMPOSITION OF INERTIA
+
+```{r}
+Bss <- sum(rowSums(k1$centers^2)*k1$size)
+Bss
+Wss <- sum(k1$withinss)
+Wss
+Tss <- k1$totss
+Tss
+
+Bss+Wss
+
+Ib1 <- 100*Bss/(Bss+Wss)
+Ib1
+
+# LETS REPEAT THE KMEANS RUN WITH K=5
+
+k2 <- kmeans(dcon,5)
+k2$size
+
+Bss <- sum(rowSums(k2$centers^2)*k2$size)
+Bss
+Wss <- sum(k2$withinss)
+Wss
+
+Ib2 <- 100*Bss/(Bss+Wss)
+Ib2
+Ib1
+
+k2$centers
+k1$centers
+
+plot(k1$centers[,3],k1$centers[,2])
+plot(dd$danceability, dd$duration_ms)
+
+ggplot() +
+  geom_point(data = dd, aes(energy, loudness), alpha = 0.15) +
+  geom_point(data = data.frame(k1$centers), aes(energy, loudness, color = "red"))
+```
+
+```{r}
+table(k1$cluster, k2$cluster)
+```
+
+## WHY WE HAVE OBTAINED DIFFERENT RESULTS?, AND WHICH RUN IS BETTER?
+
+### NOW TRY K=8
+
+```{r}
+k3 <- kmeans(dcon,8)
+k3$size
+
+Bss <- sum(rowSums(k3$centers^2)*k3$size)
+Wss <- sum(k3$withinss)
+
+Ib3 <- 100*Bss/(Bss+Wss)
+Ib3
+```
+```{r}
+plot(k3$centers[,3],k3$centers[,2])
+```
+
+## HIERARCHICAL CLUSTERING
+
+```{r}
+d  <- dist(dcon[1:50,])
+h1 <- hclust(d,method="ward.D")  # NOTICE THE COST
+plot(h1)
+```
+
+```{r}
+d  <- dist(dcon)
+# h1 <- hclust(d,method="ward")  # NOTICE THE COST
+# The "ward" method has been renamed to "ward.D"; note new "ward.D2"
+h1 <- hclust(d,method="ward.D")  # NOTICE THE COST
+h1
+plot(h1)
+
+# We'll cut the tree into 4
+
+# Define condition 
+```
+
+## BUT WE ONLY NEED WHERE THERE ARE THE LEAPS OF THE HEIGHT
+
+## WHERE ARE THER THE LEAPS? WHERE WILL YOU CUT THE DENDREOGRAM?, HOW MANY CLASSES WILL YOU OBTAIN?
+
+```{r}
+# nc = 2
+nc = 4
+
+c1 <- cutree(h1,nc)
+
+c1[1:20]
+
+nc = 5
+
+c5 <- cutree(h1,nc)
+
+c5[1:20]
+
+table(c1)
+
+table(c5)
+
+table(c1,c5)
+
+cdg <- aggregate(as.data.frame(dcon),list(c1),mean)
+cdg
+
+plot(cdg[,6], cdg[,5])
+```
+
+## LETS SEE THE PARTITION VISUALLY
+
+```{r}
+# Need to run together
+plot(popularity, energy, col=c1, main="Clustering of credit data in 4 classes")
+legend("topright", c("class1", "class2", "class3", "class4"), pch=1, col=c(1:4))
+```
+
+```{r}
+plot(energy, loudness, col=c1, main="Clustering of credit data in 4 classes")
+legend("topright", c("class1", "class2", "class3", "class4"), pch=1, col=c(1:4))
+```
+
+```{r}
+plot(danceability, popularity, col=c1, main="Clustering of credit data in 4 classes")
+legend("topright",c("class1", "class2", "class3", "class4"),pch=1,col=c(1:4), cex=0.6)
+```
+
+```{r}
+plot(valence, popularity, col=c1,main="Clustering of credit data in 4 classes")
+legend("topright",c("class1", "class2", "class3", "class4"),pch=1,col=c(1:4), cex=0.6)
+```
+
+```{r}
+plot(loudness, speechiness,col=c1,main="Clustering of credit data in 4 classes")
+legend("topright",c("class1", "class2", "class3", "class4"),pch=1,col=c(1:4), cex=0.6)
+```
+
+```{r}
+plot(valence, loudness ,col=c1,main="Clustering of credit data in 4 classes")
+legend("topright",c("class1", "class2", "class3", "class4"),pch=1,col=c(1:4), cex=0.6)
+```
+
+```{r}
+pairs(dcon, col=c1)
+```
+
+```{r}
+# Visualizing the center / centroid of the distribution of data
+# Is it ok to remove the variables that influence PC1 
+```
+## LETS SEE THE QUALITY OF THE HIERARCHICAL PARTITION
+
+```{r}
+Bss <- sum(rowSums(cdg^2)*as.numeric(table(c1)))
+
+Ib4 <- 100*Bss/Tss
+Ib4
+```
+### Move to Gower mixed distance to deal 
+simoultaneously with numerical and qualitative data
+
+```{r}
+library(cluster)
+```
+
+## Dissimilarity matrix (Main task)
+```{r}
+actives<-c(2:16)
+dissimMatrix <- daisy(dd[numeric_vars], metric = "gower", stand=TRUE) 
+
+distMatrix<-dissimMatrix^2
+```
+
+## INSTRUCTION THAT RUN THE HEIRARCHICAL CLUSTERING
+
+```{r}
+h1 <- hclust(distMatrix,method="ward.D")  # NOTICE THE COST
+plot(h1)
+```
+
+## CUT THE TREE
+
+```{r}
+c2 <- cutree(h1, 4)
+
+#class sizes 
+table(c2)
+
+#comparing with other partitions
+table(c1,c2)
+```
+
+```{r}
+names(dd)
+# Popularity
+boxplot(dd[,1]~c2, horizontal=TRUE)
+```
+
+```{r}
+# Energy
+boxplot(dd[,5]~c2, horizontal=TRUE)
+```
+
+```{r}
+# Loudness
+boxplot(dd[,7]~c2, horizontal=TRUE)
+```
+
+```{r}
+# pairs(dcon[,1:7], col=c2)
+pairs(dcon, col=c2)
+```
+
+```{r}
+# plot(popularity, danceability, col=c2, main="Clustering of credit data in 3 classes")
+# legend("topright",levels(c2),pch=1,col=c(1:4), cex=0.6)
+```
+
+```{r}
+cdg <- aggregate(as.data.frame(dcon),list(c2),mean)
+cdg
+```
+
+```{r}
+# plot(Edad, Gastos, col= c2)
+plot(popularity, duration_ms, col= c2)
+points(cdg[,4],cdg[,5],pch=16,col="orange")
+text(cdg[,4],cdg[,5], labels=cdg[,1], pos=2, font=2, cex=0.7, col="orange")
+```
+
+```{r}
+# potencials<-c(1,3,4,6,7,10)
+# pairs(dcon[,potencials],col=c2)
+pairs(dcon, col=c2)
+```
+Save the dcon dataset which was used for the clustering and
+run it through the profiling script
+```{r}
+write.csv(dcon, file="data/SpotifyClustersData.csv", row.names=F)
+```
