@@ -1,7 +1,7 @@
 library(tidyverse)
 library(janitor)
-setwd("~/Documents/class/stats-final-project/")
-raw_data <- read.csv("dataset.csv") %>% clean_names() 
+# setwd("~/Documents/class/stats-final-project/")
+raw_data <- read.csv("data/SpotifyClustersData.csv") %>% clean_names() 
 tempo <- read.csv("tempo.csv") %>% clean_names() 
 
 key_alpha <- c('C','C#/Db','D','D#/Eb','E','F','F#/Gb','G','G#/Ab','A','A#/Bb','B')

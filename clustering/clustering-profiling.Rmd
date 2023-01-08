@@ -214,6 +214,18 @@ for(k in 1:K){
 }
 ```
 
+## Descriptions for every variable
+
+### What patterns cn we see for each class
+
+-   Class 1 (black) - Songs that are more louder
+
+-   Class 2 (red) - 
+
+-   Class 3 (green) - Electronic Dance Music (EDM)
+
+-   Class 4 (blue) -
+
 ```{r}
 # Descriptors of the most significant classes. Add infoboxes
 for (c in 1:length(levels(as.factor(P)))) {

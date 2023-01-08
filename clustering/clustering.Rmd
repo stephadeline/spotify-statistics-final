@@ -294,7 +294,7 @@ whether it has low or high energy.
 
 ```{r}
 # Need to run together
-plot(energy, popularity, col=c1, main="Clustering of credit data in 4 classes")
+plot(energy, popularity, col=c1, main="Clustering of Energy vs Popularity in 4 classes")
 legend("topright", c("class1", "class2", "class3", "class4"), pch=1, col=c(1:4))
 ```
 
@@ -345,7 +345,7 @@ Songs whether happy or sad can still be loud based on how the clusters
 spread out. The classes were also partitioned according to loudness..
 
 ```{r}
-plot(valence, loudness ,col=c1,main="Clustering of credit data in 4 classes")
+plot(valence, loudness ,col=c1,main="Clustering of Valence vs Loudness in 4 classes")
 legend("topright",c("class1", "class2", "class3", "class4"),pch=1,col=c(1:4), cex=0.6)
 ```
 
@@ -356,6 +356,7 @@ clustering algorithm.
 
 ```{r}
 pairs(dcon, col=c1)
+legend("topright",c("class1", "class2", "class3", "class4"),pch=1,col=c(1:4), cex=0.6)
 ```
 
 ### Quality of the Hierarchical Partition
@@ -444,6 +445,7 @@ pairs(dcon, col=c2)
 ```
 
 ```{r}
+classes <- c("", "", "", "")
 plot(popularity, danceability, col=c2, main="Clustering of credit data in 3 classes")
 legend("topright",c("class1", "class2", "class3", "class4"),pch=1,col=c(1:4), cex=0.6)
 ```
@@ -465,6 +467,7 @@ text(cdg[,4],cdg[,5], labels=cdg[,1], pos=2, font=2, cex=0.7, col="orange")
 
 ```{r}
 pairs(dcon, col=c2)
+legend("topright",c("class1", "class2", "class3", "class4"),pch=1,col=c(1:4), cex=0.6)
 ```
 
 ### Steps before moving to Profiling
@@ -484,3 +487,29 @@ which will be using the dataset saved below
 ```{r}
 write.csv(dcon_clust, file="data/SpotifyClustersData.csv", row.names=F)
 ```
+
+dd_clust <- dd %>% bind_cols(tibble(cluster = c2))
+
+dd_clust %>%
+  group_by(cluster, as.factor(track_genre)) %>%
+  summarize(n = n()) %>%
+  arrange(desc(n))
+  
+dd_forplot <- dd_clust %>%
+  select(track_genre, cluster) %>%
+  group_by(cluster, track_genre) %>%
+  count() %>%
+  ungroup() %>%
+  group_by(cluster) %>%
+  top_n(10, track_genre) %>
+  arrange(cluster, desc(n))
+  
+ggplot(dd_forplot) +
+  geom_col(aes(x = cluster, y = n, fill = track_genre)) +
+  geom_text(aes(x = cluster, y = n, label = track_genre))
+
+dd_clust %>%
+  select(popularity, track_genre, cluster) %>%
+  arrange(desc(popularity)) %>%
+  top_n(1)
+
