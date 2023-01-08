@@ -1,0 +1,225 @@
+---
+title: "spotify-multiple-regression"
+date: "2022-12-22"
+output:
+  word_document: default
+  html_document: default
+---
+
+## Importing libraries
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(lubridate)
+```
+
+## Importing the data
+
+In the descriptive statistics, we have cleaned up the data set and narrowed in down from over 100,000k rows to 3,000 rows. For the linear regression in this portion, we will be importing the cleaned data set and running the regression from here.
+
+```{r spotify}
+#setwd("~/Desktop/masters-visual-tools/stat-programming/cleaneddata")
+
+library(readr)
+data <- read_csv("~/Desktop/masters-visual-tools/stat-programming/final-project-stats/cleaneddata.csv", show_col_types = FALSE)
+attach(data)
+View(data)
+class(data)
+names(data) #check type of data - List
+```
+
+## Clean up data set for regression & analyse data set
+
+We can remove categorical columns as regression is a quantitative research method.
+
+From the correlation results below, we can see that energy has pretty high correlation with loudness (0.752) and a negative correlation with acousticness (0.731).
+
+-   Valence also seems to have some relation with danceability (0.53), though not a strong correlation.
+
+-   We also see that popularity doesn't really have a strong correlation with any of the variables. It seems that what makes a song popular is a combination of factors.
+
+We will be analysing these three variables - energy, loudness and acousticness - for the linear regression. **We will explore if we can build a model that predicts the energy level of a song, based on loudness and acousticness.**
+
+```{r}
+#create dataframe and run correlation to see it at a glance.
+A <- data.frame(data[,c(1,4:5,7,9:15)])
+cor(A)
+```
+
+To make the data set smaller, we filter it further to keep only the relevant variables we are interested in for the analysis.
+
+```{r}
+energyData <- data.frame(data[,c(5,7,10)])
+cor(energyData)
+
+summary(energyData)
+```
+
+```{r}
+filteredEnergyData = energyData %>% filter(loudness > -10, loudness < -1, acousticness > 0.1)
+```
+
+## Comparing and analysing results
+
+#### 1. Energy vs Loudness
+
+First, let's try to compare **energy** with **loudness**, and color them according to categorical variable mode (major vs minor). In the plot below, we see that there indeed is a **positive correlation**.
+
+We use a log scale so that the linearity can be seen more clearly.
+
+We see that in general, **the louder a song is, the more energy** it has.
+
+```{r}
+ggplot(data, aes(x=loudness, y=log(energy), color=mode)) + geom_point() + geom_smooth(method=lm)
+```
+
+#### 2. Energy vs Acousticness
+
+Next, we compare **acousticness** with **energy**. The chart indicates that there isn't really a relationship between the two variables. Could be due to the outliers and polarising ends of acousticness? Doesn't seem like a plot showing two variables with a correlation of 0.731.
+
+```{r}
+ggplot(data, aes(x=energy, y=acousticness, color=mode)) + geom_point() + geom_smooth(method=lm)
+```
+
+### Plot boxplot of variables: energy, loudness & acousticness.
+
+-   There seems to be no outliers for energy, but many outliers for loudness.
+
+-   For energy, the distribution is leftly skewed.
+
+-   For acousticness, the distribution is rightly skewed.
+
+```{r}
+boxplot(energyData$energy, horizontal=TRUE, main="Energy")
+boxplot(energyData$loudness, horizontal=TRUE, main="Loudness")
+boxplot(energyData$acousticness, horizontal=TRUE, main="Acousticness")
+```
+
+### Plot histogram of variables: energy, loudness & acousticness.
+
+-   **Energy (dependent variable):** We see that our observations doesn't follow a normal distribution. Most songs have high energy. So we have an idea that perhaps, running a linear regression model isn't the best way to do this.
+
+-   **Loudness (independent variable):** It follows a normal distribution but clearly more skewed to the right. Most songs are quite loud.
+
+-   **Acousticness (independent variable):** Most songs are less acoustic (in the 0.0-0.1 range). This makes sense because acousticness is negatively corelated to energy. Previously we've identified that most songs in our data set have high energy, so it makes sense that now when plotting acousticness, most of them are less acoustic.
+
+```{r}
+hist(energyData$energy, xlab="Energy", main="Histogram of Energy levels")
+hist(energyData$loudness, xlab="Loudness", main="Histogram of Loudness")
+hist(energyData$acousticness, xlab="Acousticness", main="Histogram of Acousticness")
+```
+
+## Linear regression - Energy vs Loudness
+
+1.  Finding co-relation values.
+    -   In general, a **P-value of \< 0.005** means it makes sense to apply linear regression and there is a strong correlation.
+
+    -   In this case, p-value \< 2.2e-16, which is statiscally small so we can reject the null hypothesis.
+
+    -   Correlation value is also statistically large at 0.7516.
+
+    -   So, we can proceed with the linear regression.
+
+```{r}
+cor(energyData$energy, energyData$loudness)
+cor.test(formula = ~ energy + loudness,
+         data = energyData)
+```
+
+2\. Finding R-squared
+
+-   **Multiple R-squared** tells us what percentage of the variation within our dependent variable (energy) that the independent variable (loudness) is explaining. This helps us to understand how well our model is fitting the data.
+
+-   **R-squared value should be close to 1**, which means there is a better correlation between the two variables. In our case, R-squared value is 0.565.
+
+-   This means that loudness explains **56%** of the variation with energy, our dependent variable. It's not super high (meaning there are other factors to take into consideration too) but now we know that loudness accounts for more than half of the variation for energy.
+
+-   **However, when we look at residual standard error, it is relatively high (0.1754).** Ideally, we should want the smallest residual standard error as possible, as this will mean that our model's prediction line is very close to the actual values on average.
+
+    -   Looking back at our dataset, which has an average of 0.6249, having all our predictions be off on average by 0.1754 won't produce a very accurate model.
+
+```{r}
+m1<-lm(energy~loudness, energyData)
+summary(m1)
+```
+
+```{r}
+which.max(energyData$energy)
+which.min(energyData$energy)
+mean(energyData$energy)
+```
+
+3\. Plotting m1
+
+We now plot the residual charts to get a better understanding of any outliers. Residuals are the unexplained variance. They are not exactly the same as model error, but they are calculated from it, so seeing a bias in the residuals would also indicate a bias in the error.
+
+-   **Residuals vs Fitted:** This plot shows if residuals have non-linear patterns. From our plot, we see that it doesn't fit regression assumptions very well. There are too many outliers. Perhaps if we remove the outliers on the left, the residuals would be more equally spread residuals around a horizontal line.
+
+-   **Normal Q-Q:** This plot shows if residuals are normally distributed. The number of outliers on the right and left are concerning.
+
+-   **Scale-Location:** This plot shows if residuals are spread equally along the ranges of predictors. This is where we can check the assumption of equal variance (homoscedasticity). Clearly, there are too many outliers.
+
+-   **Residuals vs Leverage:** This plot helps us to find influential cases (i.e., subjects) if any. Even though data have extreme values, they might not be influential to determine a regression line. There seems to be a lot of outliers, but all of them are inside of the Cook's distance lines.
+
+```{r}
+plot(m1)
+```
+
+## Linear regression - Energy vs acousticness
+
+1\. Finding co-relation values
+
+-   When we run the code, the **p-value** \< 2.2e-16, which is less than 0.005, so it makes sense to apply linear regression
+
+-   The correlation value is -0.7314, which tells us there is quite a strong **negative correlation** between energy and acousticness. Meaning the more energy a song has, the less acoustic it is.
+
+```{r}
+cor(data$energy, data$acousticness)
+cor.test(formula = ~ energy + acousticness,
+         data = data)
+```
+
+2.  Finding R-squared
+    -   Our R-squared value is 0.535, which means that acousticness accounts for at least 53% of the variation in energy.
+
+```{r}
+m2<-lm(energy~acousticness, data)
+summary(m2)
+```
+
+3.  Plotting m2
+    -   **Residuals vs Fitted:** Our plot shows that the residuals are spread quite equally, with the exception of a couple of outliers at the bottom right. The red line is almost horizontal.
+
+    -   **Normal Q-Q:** The residuals follow the straight line pretty well, apart from the outliers at bottom left.
+
+    -   **Scale-Location:** Again, we see that residuals are actually spread quite equally. Apart from the outliers we identified previously, the red line is almost horizontal. However, it is worth noting that there are a lot more residuals at the polarising ends. This makes sense when we look at our histogram plot of loudness, which showed that the number of songs which are less acoustic outweighs the number of songs which are more acoustic by quite a bit.
+
+    -   **Residuals vs Leverage:** Again, there seems to be a concentration of the residuals at both polarising ends.
+
+```{r}
+plot(m2)
+```
+
+## Multiple regression - Energy vs loudness and acousticness
+
+Here, we use the `cor()` function to test the relationship between our independent variables (loudness, acousticness). The output is -0.55, which is statistically high, and indicates they are highly correlated. So, it wouldn't make a lot of sense to run both parameters in our model.
+
+```{r}
+cor(energyData$acousticness, energyData$loudness) 
+```
+
+However, when we run the regression model, we see the Adjusted R-Squared jumped from 0.565 to 0.71, which is pretty significant.
+
+```{r}
+energyData.lm<-lm(energy ~ loudness + acousticness, data = energyData) 
+summary(energyData.lm)
+```
+
+## Summarising regression results
+
+Based on the linear regression that we've done on both plots, it seems that both loudness and acousticness have some correlation to the energy levels of a song.
+
+Doing a multiple regression also improves the model a bit, with r-squared jumping from 0.565 to 0.71.
+
+However, upon looking at the residuals and the number of outliers, the relatively high adjusted r-squared values may have been could be due to those outliers. Hence, the models we\'ve created seem like they are unsuitable for predicting a song\'s energy levels, and perhaps we should consider another type of model.
