@@ -1,5 +1,5 @@
 ---
-title: "Spotify Dataset Profiling"
+title: "Spotify Dataset Clustering - Profiling Analysis"
 output: word_document
 date: "2023-01-05"
 ---
@@ -8,7 +8,7 @@ date: "2023-01-05"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Profiling
+# Spotify Dataset Clustering - Profiling Analysis
 
 This report is a continuation of the clustering.Rmd process. The SpotifyClustersData.csv was sourced from that dataset.
 
@@ -20,16 +20,17 @@ dd <- read.table("data/SpotifyClustersData.csv",header=T, sep=",", dec='.');
 head(dd, 10)
 ```
 
-### As you may notice, the new cluster variable was generated from dissimilarity Matrix / Gower's Distance from previous script.
+As you may notice, the new cluster variable was generated from dissimilarity Matrix / Gower's Distance from previous script.
 
 ```{r}
 names(dd)
 ```
+
 ```{r}
 attach(dd)
 ```
 
-### Calculate the test value of variable Xnum for all modalities of factor P
+Calculate the test value of variable Xnum for all modalities of factor P
 
 ```{r}
 ValorTestXnum <- function(Xnum,P){
@@ -76,23 +77,7 @@ K<-dim(dades)[2]
 par(ask=TRUE)
 ```
 
-# ```{r}
-# #--- Inserted a code from generated c2 variable from clustering
-# ## Dissimilarity matrix (Main task)
-#   library(cluster)
-#   numeric_vars <- c("loudness", "energy", "acousticness", "instrumentalness", "valence")
-#   dissimMatrix <- daisy(dd[,numeric_vars], metric = "gower", stand=TRUE) 
-#   distMatrix<-dissimMatrix^2
-#   
-#   ## INSTRUCTION THAT RUN THE HEIRARCHICAL CLUSTERING
-#   h1 <- hclust(distMatrix,method="ward.D")  # NOTICE THE COST
-#   
-#   ## CUT THE TREE
-#   c2 <- cutree(h1, 4)
-# #---
-# ```
-
-### Using the added column 'cluster' which we'll continue use here as c2
+Using the added column 'cluster' which we'll continue use here as c2
 
 ```{r}
 # P must contain the class variable
@@ -239,4 +224,4 @@ for (c in 1:length(levels(as.factor(P)))) {
 }
 ```
 
-# Add the information of the modalities of qualitative to the list of pvalues and make global ordering
+Add the information of the modalities of qualitative to the list of pvalues and make global ordering
