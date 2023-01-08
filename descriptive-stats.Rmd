@@ -108,7 +108,6 @@ popular_artists <- data %>% group_by(artists) %>%
 filtered <- data %>% filter(artists %in% popular_artists$artists) %>% 
   filter(duration_ms <= 600000) %>%
   #removing the track_id, title, artists, albums because it's not needed.
-  select(5:21) %>%
   mutate(
   # adding an ordinal variable for tempo
   tempo_cat = cut(tempo,
@@ -118,13 +117,21 @@ filtered <- data %>% filter(artists %in% popular_artists$artists) %>%
 
 # random sampling the data to just 3000 songs
 set.seed(1)
-dd <- filtered %>% sample_n(3000)
+dd <- filtered %>% sample_n(3000) %>% select(5:21)
+dd
 
 # attaching the column names
 attach(dd)
 
 # for one-time exporting for other analysis
 # dd %>% write_csv("cleaneddata.csv")
+
+#exporting dataset with titles for clustering analysis
+#filtered %>% relocate(artists, .after = last_col()) %>% 
+#  relocate(album_name, .after = last_col()) %>% 
+#  relocate(track_name, .after = last_col()) %>% select(2:22) %>% write_csv("cleaneddata-withtitles.csv")
+
+
 ```
 
 # Descriptive Statistics
