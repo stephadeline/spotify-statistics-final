@@ -1,5 +1,5 @@
 ---
-title: "Tree-based modelling"
+title: "05-decision-tree"
 output:
   word_document: default
 ---
