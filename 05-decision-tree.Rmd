@@ -90,6 +90,12 @@ tree
 
 ```
 
+```{r}
+library(rpart.plot)
+tree$fit %>% rpart.plot(type = 4, extra = 2, roundint = FALSE)
+
+```
+
 
 ### Predict and evaluate model
 
