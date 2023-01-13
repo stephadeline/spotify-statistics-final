@@ -6,6 +6,8 @@ date: "2023-01-05"
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
 ```
 
 # Spotify Dataset Clustering - Profiling Analysis
@@ -14,9 +16,17 @@ This report is a continuation of the clustering.Rmd process. The SpotifyClusters
 
 ```{r}
 # Replace with your own working directory if needed
-WD <- "C:/Users/Joseph/Documents/Codes/2022/mvtec-2022/finalproject/spotify-statistics-final/clustering"
+WD <- "C:/Users/Joseph/Documents/Codes/2022/mvtec-2022/finalproject/04-clustering"
 setwd(WD)
-dd <- read.table("data/SpotifyClustersData.csv",header=T, sep=",", dec='.');
+
+# dd <- read.csv("data/SpotifyClustersData.csv",header=T, sep=",", dec='.');
+
+c2 <- read.csv("data/c2.csv", header=T) %>% pull()
+
+dd <- read.csv("data/cleaneddata-withtitles.csv") %>%
+  select("key", "tempo_cat",
+         "loudness", "energy", "acousticness", "instrumentalness", "valence") %>%
+  bind_cols(tibble(c2))
 head(dd, 10)
 ```
 
@@ -81,7 +91,7 @@ Using the added column 'cluster' which we'll continue use here as c2
 
 ```{r}
 # P must contain the class variable
-c2 <- dd$cluster
+# c2 <- dd$cluster
 P <- c2
 
 nc <- length(levels(factor(P)))
@@ -220,7 +230,7 @@ for(k in 1:K){
 
 -   Class 1 (black) - Most loudest and energetic
 
--   Class 2 (red) - Most acoustic
+-   Class 2 (red) - Most acoustic
 
 -   Class 3 (green) - Most energetic and instrumental
 
@@ -239,3 +249,44 @@ for (c in 1:length(levels(as.factor(P)))) {
 ```
 
 Add the information of the modalities of qualitative to the list of pvalues and make global ordering
+
+## Check song if fits profile
+
+Based from the charts above, we describe the classes with these profiles:
+
+- Class 1 - Mostly loudest
+
+- Class 1 & 3 - Most energetic
+
+- Class 2 & 4 - Most acoustic
+
+- Class 3 & 4 - Most instrumental
+
+- From Happiest to saddest Class 1, 2, 3, 4
+
+We then picked the most popular song for every class and see if the profiling fits that song:
+
+```{r}
+dd_clust <- read.csv("data/cleaneddata-withtitles.csv") %>%
+  bind_cols(tibble(cluster = c2))
+head(dd_clust)
+```
+
+```{r}
+names(dd_clust)
+```
+Here's the top 2 songs for every cluster. Try to listen to each song and check if it fits the profile we created.
+
+```{r}
+pop_per_class <- dd_clust %>%
+  select(popularity, track_name, artists, track_genre, cluster) %>%
+  arrange(desc(popularity)) %>%
+  group_by(cluster) %>%
+  top_n(6, popularity) %>%
+  arrange(cluster)
+pop_per_class
+```
+```{r}
+ggplot(pop_per_class) +
+  geom_bar(aes(x = cluster, fill = track_genre))
+```

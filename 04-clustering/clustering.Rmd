@@ -34,7 +34,7 @@ We setup the working directory and load the pre-cleaned Spotify dataset
 
 ```{r}
 # Replace with your own working directory if needed
-WD <- "C:/Users/Joseph/Documents/Codes/2022/mvtec-2022/finalproject/spotify-statistics-final/clustering"
+WD <- "C:/Users/Joseph/Documents/Codes/2022/mvtec-2022/finalproject/04-clustering"
 setwd(WD)
 dd <- read.csv("data/cleaneddata.csv", sep=",");
 head(dd)
@@ -278,22 +278,10 @@ Let's examine the aggregated values between intrumentalness and valence
 plot(cdg[,5], cdg[,6])
 ```
 
-## Visual partition of the Clusters
+## Visual partition of the Clusters: How Does Energy Affects Every Other Variables?
 
 Cross comparing every numerical variables of the Spotify dataset, we may
 observe that some combinations create patterns while some does not.
-
-### Are Energetic Songs More Popular? (Energy vs Popularity)
-
-The partitions of the clusters comparing popularity and energy seems to
-overlap with each other. It seems that songs can still be popular
-whether it has low or high energy.
-
-```{r}
-# Need to run together
-plot(energy, popularity, col=c1, main="Clustering of Energy vs Popularity in 4 classes")
-legend("topright", c("class1", "class2", "class3", "class4"), pch=1, col=c(1:4))
-```
 
 ### Are More Energetic Songs Louder? (Energy vs Loudness)
 
@@ -317,32 +305,31 @@ plot(energy, loudness, col=c1, main="Clustering of Energy vs Loudness in 4 class
 legend("topright", c("class1", "class2", "class3", "class4"), pch=1, col=c(1:4))
 ```
 
-### Are Popular Songs Danceable? (Danceability vs Popularity)
+### Are Energetic Songs More Acoustic? (Energy vs Acousticness)
 
-The sweet spot between danceability and popularity is somewhere in the
-middle. Too popular or too indie might not make a song danceable.
+The distribution overall is a bit spread out but concentrated somewhere on the upper left and lower right of the scatterplot.
 
 ```{r}
-plot(popularity, danceability, col=c1, main="Clustering of Danceability vs Popularity in 4 classes")
+plot(energy, acousticness, col=c1, main="Clustering of Energy vs Acousticness in 4 classes")
 legend("topright",c("class1", "class2", "class3", "class4"),pch=1,col=c(1:4), cex=0.6)
 ```
 
-### Does rapping makes a song louder? (Speechiness vs Loudness)
+### Are higher energy songs more instrumental? (Energy vs Instrumentalness)
 
-Louder songs seem to use lower words
+Song's instrumentalness seem to concentrate mostly on the lower ends of instrumentalness. Overall, songs can be instrumental regardless of energy.
 
 ```{r}
-plot(speechiness, loudness, col=c1,main="Clustering of Speechiness vs Loudness in 4 classes")
+plot(energy, instrumentalness, col=c1,main="Clustering of Energy vs Instrumentalness in 4 classes")
 legend("topright",c("class1", "class2", "class3", "class4"),pch=1,col=c(1:4), cex=0.6)
 ```
 
-### Are Happier Songs Louder Than Sad Songs? (Valence vs Loudness)
+### Are Energetic Songs Higher in Valence? (Energy vs Valence)
 
-Songs whether happy or sad can still be loud based on how the clusters
-spread out. The classes were also partitioned according to loudness..
+Songs whether happy or sad can still be energetic based on how the clusters
+spread out.
 
 ```{r}
-plot(valence, loudness ,col=c1,main="Clustering of Valence vs Loudness in 4 classes")
+plot(energy, valence ,col=c1,main="Clustering of Energy vs Valence in 4 classes")
 legend("topright",c("class1", "class2", "class3", "class4"),pch=1,col=c(1:4), cex=0.6)
 ```
 
@@ -417,10 +404,10 @@ table(c1, c2)
 names(dd)
 ```
 
-#### Popularity
+#### Loudness
 
 ```{r}
-boxplot(dd[,1]~c2, horizontal=TRUE)
+boxplot(dd[,7]~c2, horizontal=TRUE)
 ```
 
 #### Energy
@@ -429,20 +416,26 @@ boxplot(dd[,1]~c2, horizontal=TRUE)
 boxplot(dd[,5]~c2, horizontal=TRUE)
 ```
 
-#### Loudness
+#### Acousticness
 
 ```{r}
-boxplot(dd[,7]~c2, horizontal=TRUE)
+boxplot(dd[,10]~c2, horizontal=TRUE)
+```
+#### Valence
+
+```{r}
+boxplot(dd[,13]~c2, horizontal=TRUE)
 ```
 
-### Visualize distMatrix for every variable in a matrix
+
+### Visualize distMatrix for every variable in a pairs matrix
 
 ```{r}
 pairs(dcon, col=c2)
 ```
 
 ```{r}
-plot(popularity, danceability, col=c2, main="Clustering of Popularity vs Danceability in 3 classes")
+plot(energy, loudness, col=c2, main="Clustering of Energy vs Loudness in 3 classes")
 legend("topright",c("class1", "class2", "class3", "class4"),pch=1,col=c(1:4), cex=0.6)
 ```
 
@@ -454,7 +447,7 @@ cdg
 ```
 
 ```{r}
-plot(popularity, duration_ms, col= c2)
+plot(energy, acousticness, col= c2)
 points(cdg[,4],cdg[,5],pch=16,col="orange")
 text(cdg[,4],cdg[,5], labels=cdg[,1], pos=2, font=2, cex=0.7, col="orange")
 ```
@@ -482,41 +475,5 @@ which will be using the dataset saved below
 
 ```{r}
 write.csv(dcon_clust, file="data/SpotifyClustersData.csv", row.names=F)
-```
-
-## Check song if fits profile
-
-Based from the charts above, we describe the classes with these profiles:
-
-- Class 1 - Mostly loudest
-
-- Class 1 & 3 - Most energetic
-
-- Class 2 & 4 - Most acoustic
-
-- Class 3 & 4 - Most instrumental
-
-- From Happiest to saddest Class 1, 2, 3, 4
-
-We then picked the most popular song for every class and see if the profiling fits that song:
-
-```{r}
-dd_clust <- read.csv("data/cleaneddata-withtitles.csv") %>%
-  bind_cols(tibble(cluster = c2))
-head(dd_clust)
-```
-
-```{r}
-names(dd_clust)
-```
-Here's the top 2 songs for every cluster. Try to listen to each song and check if it fits the profile we created.
-
-```{r}
-pop_per_class <- dd_clust %>%
-  select(popularity, track_name, artists, track_genre, cluster) %>%
-  arrange(desc(popularity)) %>%
-  group_by(cluster) %>%
-  top_n(2, popularity) %>%
-  arrange(cluster)
-pop_per_class
+write.csv(c2, file="data/c2.csv", row.names=F)
 ```
