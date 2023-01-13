@@ -69,6 +69,11 @@ corrplot(cor(A),
 ```
 
 ```{r}
+B <- data.frame(top10[,c(5,7,10)])
+cor(B)
+```
+
+```{r}
 summary(A)
 ```
 
@@ -86,31 +91,6 @@ geom_histogram(bins=20)+
   labs(x = "Track Energy Levels",
        title = "The distribution of the track energy levels")+
   theme(legend.position = "none")
-```
-
-## Comparing and analysing results
-
-#### 1. Energy vs Loudness
-
-First, let's try to compare **energy** with **loudness**, and color them according to categorical variable mode (major vs minor). In the plot below, we see that there indeed is a **positive correlation**.
-
-We see that in general, **the louder a song is, the more energy** it has.
-
--   It is also clear here that new age songs (purple) tend to be less loud, and less energetic.
-
--   J-idol songs (blue) are louder, and more has more energy
-
-```{r}
-#top 10 genres only
-ggplot(top10, aes(x=energy, y=loudness)) + geom_point((aes(colour = track_genre))) + geom_smooth(method=lm) + theme(legend.title = element_blank())+ labs(x = "Energy", y = "Loudness", title = "Association between Energy and Loudness")
-```
-
-#### 2. Energy vs Acousticness
-
-Next, we compare **acousticness** with **energy**. The chart indicates that there isn't really a relationship between the two variables. This could be due to the outliers. Doesn't seem like a plot showing two variables with a correlation of 0.731.
-
-```{r}
-ggplot(top10, aes(x=energy, y=acousticness)) + geom_point((aes(colour = track_genre))) + geom_smooth(method=lm) + theme(legend.title = element_blank())+ labs(x = "Energy", y = "Acousticness", title = "Association between Energy and Acousticness")
 ```
 
 ### Plot boxplot of variables: energy, loudness & acousticness.
@@ -141,7 +121,24 @@ hist(top10$loudness, xlab="Loudness", main="Histogram of Loudness")
 hist(top10$acousticness, xlab="Acousticness", main="Histogram of Acousticness")
 ```
 
-## Linear regression - Energy vs Loudness
+## Comparing and analysing results
+
+## 1. Energy vs Loudness
+
+First, let's try to compare **energy** with **loudness**, and color them according to categorical variable mode (major vs minor). In the plot below, we see that there indeed is a **positive correlation**.
+
+We see that in general, **the louder a song is, the more energy** it has.
+
+-   It is also clear here that new age songs (purple) tend to be less loud, and less energetic.
+
+-   J-idol songs (blue) are louder, and more has more energy
+
+```{r}
+#top 10 genres only
+ggplot(top10, aes(x=loudness, y=energy)) + geom_point((aes(colour = track_genre))) + geom_smooth(method=lm) + theme(legend.title = element_blank())+ labs(x = "Loudness", y = "Energy", title = "Association between Energy and Loudness")
+```
+
+### Linear regression - Energy vs Loudness
 
 1.  Finding co-relation values
     -   In general, a **p-value of \< 0.005** means it makes sense to apply linear regression and there is a strong correlation.
@@ -170,6 +167,8 @@ cor.test(formula = ~ energy + loudness,
 
     -   Looking back at our dataset, which has an average of 0.598, having all our predictions be off on average by 0.1754 won't produce a very accurate model.
 
+-   **Equation:** Energy = 0.989 + (0.041 \* loudness)
+
 ```{r}
 m1<-lm(energy~loudness, top10)
 summary(m1)
@@ -179,6 +178,19 @@ summary(m1)
 which.max(top10$energy)
 which.min(top10$energy)
 mean(top10$energy)
+```
+
+We test how effective our model is with our linear equation. Energy = 0.989 + (0.0417 \* Loudness)
+
+We use the first song in our dataset, which has a value of -13.106 loudness, and **0.2350** energy. Our model returns a value of 0.442, which is quite far off from the original energy value.
+
+```{r}
+0.989 + (0.0417 * (-13.106))
+
+```
+
+```{r}
+ggplot(top10, aes(x=loudness, y=energy)) + geom_point((aes(colour = track_genre))) + geom_smooth(method=lm) + theme(legend.title = element_blank())+ labs(x = "loudness", y = "energy", title = "Energy = 0.989 + (0.041 * loudness)")
 ```
 
 3\. Plotting m1
@@ -197,7 +209,15 @@ We now plot the residual charts to get a better understanding of any outliers. R
 plot(m1)
 ```
 
-## Linear regression - Energy vs acousticness
+## 2. Energy vs Acousticness
+
+Next, we compare **acousticness** with **energy**. The chart indicates that there isn't really a relationship between the two variables. This could be due to the outliers. Doesn't seem like a plot showing two variables with a correlation of 0.731.
+
+```{r}
+ggplot(top10, aes(x=acousticness, y=energy)) + geom_point((aes(colour = track_genre))) + geom_smooth(method=lm) + theme(legend.title = element_blank())+ labs(x = "Acousticness", y = "Energy", title = "Association between Energy and Acousticness")
+```
+
+### Linear regression - Energy vs acousticness
 
 1\. Finding co-relation values
 
@@ -218,6 +238,18 @@ cor.test(formula = ~ energy + acousticness,
 ```{r}
 m2<-lm(energy~acousticness, top10)
 summary(m2)
+```
+
+We test how effective our model is with our linear equation. Energy = 0.795 + (-0.582 \* acousticness)
+
+We use the first song in our dataset, which has a value of 9.17e-01 acousticness, and **0.2350** energy. Our model returns a value of 0.261, which is quite close to the original energy value.
+
+```{r}
+0.795 + (-0.582 * (9.17e-01))
+```
+
+```{r}
+ggplot(top10, aes(x=acousticness, y=energy)) + geom_point((aes(colour = track_genre))) + geom_smooth(method=lm) + theme(legend.title = element_blank())+ labs(x = "acousticness", y = "energy", title = "Energy = 0.795 + (-0.582 * acousticness)")
 ```
 
 3.  Plotting m2
@@ -248,10 +280,40 @@ A.lm <-lm(energy ~ loudness + acousticness, data = A)
 summary(A.lm)
 ```
 
+```{r}
+m3<-lm(energy~acousticness + loudness, top10)
+summary(m3)
+```
+
+We test how effective our model is with our linear equation. Energy = 0.985 + (-0.362 \* acousticness) + (0.028 \* loudness)
+
+We use the first song in our dataset, which has a value of 9.17e-01 acousticness, -13.106 loudness and **0.2350** energy. Our model returns a value of 0.286, which is quite close to the original energy value.
+
+However, when we plotted previously with energy and acousticness, it returned a value of 0.261, which is closer to original value. Hence, by adding loudness to the model, it did not really help to improve the energy vs acousticness model.
+
+```{r}
+0.985 + (-0.362 * 9.17e-01) + (0.028 * -13.106)
+```
+
+3.  Plotting m3
+    -   **Residuals vs Fitted:** There seems to be some outliers on the left hand side
+
+    -   **Normal Q-Q:** The residuals follow the straight line pretty well, apart from the outliers at top right and left
+
+    -   **Scale-Location:** Some outliers between 0.6 and 0.9.
+
+    -   **Residuals vs Leverage:** There are some outliers, but they are all within cook's distance.
+
+```{r}
+plot(m3)
+```
+
 ## Summarising regression results
 
 Based on the linear regression that we've done on both plots, it seems that both loudness and acousticness have some correlation to the energy levels of a song.
 
-Doing a multiple regression also improves the model a bit, with adjusted r-squared jumping from 0.601 to 0.71.
+When we test out our model, acousticness seems to be a better predictor than loudness.
 
-However, upon looking at the residuals and the number of outliers, the models we've created might not be the best at predicting a song's energy levels, and perhaps we should consider another type of model.
+Doing a multiple regression helps to improve the adjusted r-squared jumping from 0.601 to 0.7592, but these numbers could be inflated due to the high correlation between acousticness and loudness.
+
+In fact, when we run the multiple regression, the model was not as accurate compared to the linear regression with energy vs acousticness alone.
